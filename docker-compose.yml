@@ -1,0 +1,78 @@
+services:
+  # PHP Application Server
+  php:
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    container_name: hc_php
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+    networks:
+      - hc_network
+
+  # Nginx Web Server
+  nginx:
+    image: nginx:alpine
+    container_name: hc_nginx
+    restart: unless-stopped
+    ports:
+      - "8000:80"
+    volumes:
+      - .:/var/www
+      - ./docker/nginx:/etc/nginx/conf.d
+    networks:
+      - hc_network
+    depends_on:
+      - php
+
+  # MySQL Database
+  mysql:
+    image: mysql:8.0
+    container_name: hc_mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: healthcare_db
+      MYSQL_ROOT_PASSWORD: root
+    volumes:
+      - hc_db_data:/var/lib/mysql
+    networks:
+      - hc_network
+
+  # Redis for Queues & Caching
+  redis:
+    image: redis:alpine
+    container_name: hc_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    networks:
+      - hc_network
+
+  # Vite Asset Compilation Service (HMR)
+  npm:
+    image: node:20-alpine
+    container_name: hc_npm
+    working_dir: /var/www
+    volumes:
+      - .:/var/www
+    ports:
+      - "5173:5173"
+    environment:
+      - NODE_ENV=development
+    entrypoint: ["npm", "run", "dev", "--", "--host"]
+    networks:
+      - hc_network
+    depends_on:
+      - php
+
+networks:
+  hc_network:
+    driver: bridge
+
+volumes:
+  hc_db_data:
+    driver: local
